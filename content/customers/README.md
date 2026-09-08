@@ -214,6 +214,18 @@ SELECT COUNT(*) FROM pay.orders WHERE total IS NULL;
 
 ---
 
+## Modelo relacional
+
+El diagrama con todas las tablas, columnas, llaves y relaciones está en:
+
+```
+models/relational-model.md
+```
+
+Se renderiza directo en GitHub sin necesidad de instalar ninguna herramienta.
+
+---
+
 ## Queries — Ejercicios de clase
 
 Los queries de práctica están organizados por fecha de clase en `queries/class/`. Ábrelos en orden:
