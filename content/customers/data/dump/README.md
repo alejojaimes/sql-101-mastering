@@ -14,7 +14,7 @@ data/dump/customers_db_YYYYMMDD.dump
 pg_dump \
   -U admin \
   -h localhost \
-  -p 5433 \
+  -p 5432 \
   -d customers_db \
   --no-owner \
   --no-privileges \
@@ -28,7 +28,7 @@ pg_dump \
 pg_restore \
   -U admin \
   -h localhost \
-  -p 5433 \
+  -p 5432 \
   -d customers_db \
   --no-owner \
   content/customers/data/dump/customers_db_YYYYMMDD.dump
