@@ -1,28 +1,41 @@
-# Customers DB — Setup Guide
+# Customers DB — Guía de configuración
 
-> Last updated: September 2026
+> Creado: 14 de marzo de 2026
 
-## Overview
+## Historial de versiones
 
-`customers_db` is a PostgreSQL database that models an e-commerce operation. It contains ~750 K rows across four schemas and is used as the hands-on dataset for SQL 101 classes.
+| Autor | Descripción | Fecha |
+|---|---|---|
+| Juan Alejandro Carrillo Jaimes | Primera versión del documento | 14 mar 2026 |
+| Juan Alejandro Carrillo Jaimes | Actualización con esquemas separados e información real | 20 mar 2026 |
+| Juan Alejandro Carrillo Jaimes | Datos adicionales: clientes, direcciones, órdenes, items y envíos | 22 mar 2026 |
+| Juan Alejandro Carrillo Jaimes | Datos adicionales: órdenes, items y envíos | 23 mar 2026 |
+| Juan Alejandro Carrillo Jaimes | Datos adicionales: órdenes, items y envíos. Proceso de carga masiva | 28 mar 2026 |
+| Juan Alejandro Carrillo Jaimes | Reorganización del repositorio. Migración a dump para replicabilidad semestral | 08 sep 2026 |
 
-| Schema | Responsibility |
+---
+
+## ¿Qué es esta base de datos?
+
+`customers_db` es una base de datos PostgreSQL que modela una operación de e-commerce. Tiene más de **750.000 filas** distribuidas en cuatro esquemas y es el dataset principal de las clases de SQL 101.
+
+| Esquema | Responsabilidad |
 |---|---|
-| `ctg` | Catalogs — departments, municipalities, categories, products, payment methods, document types |
-| `cs` | Core — customers and addresses |
-| `pay` | Payments — orders and order items |
-| `ship` | Shipments — shipping companies and shipment orders |
+| `ctg` | Catálogos — departamentos, municipios, categorías, productos, métodos de pago, tipos de documento |
+| `cs` | Core — clientes y direcciones |
+| `pay` | Pagos — órdenes e ítems de orden |
+| `ship` | Envíos — empresas de transporte y órdenes de envío |
 
-### Row counts (reference semester)
+### Conteo de registros
 
-| Table | Rows |
+| Tabla | Registros |
 |---|---|
-| `pay.order_items` | 485,333 |
-| `pay.orders` | 121,359 |
-| `ship.shipment_orders` | 121,359 |
-| `cs.customers` | 21,254 |
-| `cs.addresses` | 21,254 |
-| `ctg.municipalities` | 1,102 |
+| `pay.order_items` | 485.333 |
+| `pay.orders` | 121.359 |
+| `ship.shipment_orders` | 121.359 |
+| `cs.customers` | 21.254 |
+| `cs.addresses` | 21.254 |
+| `ctg.municipalities` | 1.102 |
 | `ctg.products` | 75 |
 | `ctg.departments` | 33 |
 | `ctg.categories` | 20 |
@@ -32,21 +45,37 @@
 
 ---
 
-## Setup
+## Requisitos previos
 
-There are two ways to get the database running. **Option A** is the recommended path for students at the start of the semester — it is the fastest. **Option B** walks through every DDL step and is used when the goal is to practice schema creation.
+Antes de empezar, asegúrate de tener instalado:
+
+- **PostgreSQL 16** o superior
+- Un cliente SQL: [pgAdmin](https://www.pgadmin.org/) o [DBeaver](https://dbeaver.io/)
+- El archivo dump proporcionado por el profesor (ver sección siguiente)
 
 ---
 
-### Option A — Import from dump (recommended)
+## Tutorial — Cómo montar la base de datos en tu máquina
 
-This restores the full database in one command.
+Hay dos rutas. La **Opción A** es la recomendada para comenzar el semestre rápidamente. La **Opción B** es para cuando el objetivo de la clase es practicar creación de esquemas desde cero.
 
-**Prerequisites:** PostgreSQL 16, a running instance, and the dump file from your instructor placed at `data/dump/customers_db_YYYYMMDD.dump` (see `data/dump/README.md`).
+---
 
-**Step 1 — Create the database**
+### Opción A — Importar desde dump (recomendada)
 
-Connect as a superuser and run:
+Esta opción restaura la base de datos completa en pocos minutos.
+
+#### Paso 1 — Descarga el dump
+
+Descarga el archivo `customers_db_20260908.dump` desde el enlace compartido por el profesor y colócalo en:
+
+```
+content/customers/data/dump/customers_db_20260908.dump
+```
+
+#### Paso 2 — Crea el usuario y la base de datos
+
+Conéctate a PostgreSQL como superusuario (`postgres`) y ejecuta:
 
 ```sql
 CREATE USER admin WITH PASSWORD 'test25**';
@@ -61,7 +90,11 @@ CREATE DATABASE customers_db WITH
 GRANT ALL PRIVILEGES ON DATABASE customers_db TO admin;
 ```
 
-**Step 2 — Restore**
+> En pgAdmin: clic derecho en **Login/Group Roles → Create** para el usuario, y en **Databases → Create** para la base de datos.
+
+#### Paso 3 — Restaura el dump
+
+Abre una terminal y ejecuta:
 
 ```sh
 pg_restore \
@@ -70,10 +103,14 @@ pg_restore \
   -p 5432 \
   -d customers_db \
   --no-owner \
-  content/customers/data/dump/customers_db_YYYYMMDD.dump
+  content/customers/data/dump/customers_db_20260908.dump
 ```
 
-**Step 3 — Validate**
+> Te pedirá la contraseña: `test25**`
+
+#### Paso 4 — Valida la carga
+
+Conéctate a `customers_db` y ejecuta:
 
 ```sql
 SELECT
@@ -88,21 +125,23 @@ WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
 ORDER BY schemaname, tablename;
 ```
 
+Deberías ver las mismas cantidades de la tabla de conteo de registros de arriba.
+
 ---
 
-### Option B — Manual setup (DDL practice)
+### Opción B — Configuración manual (práctica de DDL)
 
-Use this when the class objective is to build the schema from scratch.
+Usa esta ruta cuando el objetivo de clase es construir el esquema desde cero.
 
-**Step 1 — Create database, user, and schemas**
+#### Paso 1 — Crea la base de datos, usuario y esquemas
 
 ```
 scripts/ddl/01-ddl-database.sql
 ```
 
-**Step 2 — Create tables**
+#### Paso 2 — Crea las tablas
 
-Execute in order to respect foreign key dependencies:
+Ejecuta en orden para respetar las dependencias de llaves foráneas:
 
 ```
 scripts/ddl/02-ddl-ctg.sql
@@ -111,24 +150,33 @@ scripts/ddl/04-ddl-pay.sql
 scripts/ddl/05-ddl-ship.sql
 ```
 
-**Step 3 — Create extensions**
+Verifica la creación de tablas:
 
-Adds `ctg.document_types`, `cs.phone_number`, and the relationship columns:
+```sql
+SELECT tablename
+FROM pg_catalog.pg_tables
+WHERE schemaname IN ('ctg', 'cs', 'pay', 'ship')
+ORDER BY schemaname, tablename;
+```
+
+#### Paso 3 — Crea las extensiones
+
+Agrega la tabla `ctg.document_types`, `cs.phone_number` y las columnas de relación:
 
 ```
 scripts/ddl/06-ddl-extensions.sql
 ```
 
-**Step 4 — Create functions**
+#### Paso 4 — Crea las funciones
 
-Execute statements one by one to isolate any errors:
+Ejecuta sentencia por sentencia para aislar errores:
 
 ```
 scripts/functions/ctg_functions.sql
 scripts/functions/pay_functions.sql
 ```
 
-**Step 5 — Create triggers**
+#### Paso 5 — Crea los triggers
 
 ```
 scripts/triggers/ctg_triggers.sql
@@ -136,15 +184,15 @@ scripts/triggers/generic_triggers.sql
 scripts/triggers/ship_triggers.sql
 ```
 
-**Step 6 — Create indexes**
+#### Paso 6 — Crea los índices
 
 ```
 scripts/index/pay_orders_items.sql
 ```
 
-**Step 7 — Import data**
+#### Paso 7 — Importa los datos
 
-After completing steps 1–6, restore only the data from the dump:
+Con el esquema creado, restaura solo los datos del dump:
 
 ```sh
 pg_restore \
@@ -154,71 +202,71 @@ pg_restore \
   -d customers_db \
   --no-owner \
   --data-only \
-  content/customers/data/dump/customers_db_YYYYMMDD.dump
+  content/customers/data/dump/customers_db_20260908.dump
 ```
 
-**Step 8 — Validate**
+#### Paso 8 — Valida
 
 ```sql
 SELECT COUNT(*) FROM pay.orders WHERE total IS NULL;
--- Expected: 0
+-- Esperado: 0
 ```
 
 ---
 
-## Queries — Class exercises
+## Queries — Ejercicios de clase
 
-Practice queries are organized by class date under `queries/class/`. Open them in order:
+Los queries de práctica están organizados por fecha de clase en `queries/class/`. Ábrelos en orden:
 
-| File | Topics |
+| Archivo | Temas |
 |---|---|
 | `queries/class/queries-100326.sql` | COUNT, UNION, GROUP BY, EXTRACT, FILTER |
-| `queries/class/queries-130326.sql` | JOINs introduction |
-| `queries/class/queries-200326.sql` | Aggregations and subqueries |
+| `queries/class/queries-130326.sql` | Introducción a JOINs |
+| `queries/class/queries-200326.sql` | Agregaciones y subconsultas |
 | `queries/class/queries-230326.sql` | Window functions |
-| `queries/class/queries-240326.sql` | CTEs and advanced filtering |
+| `queries/class/queries-240326.sql` | CTEs y filtros avanzados |
 
 ---
 
-## Scripts reference
+## Referencia de scripts
 
 ```
 scripts/
-├── ddl/                     # Schema definition — run in numeric order
-│   ├── 01-ddl-database.sql  # DB, user, schemas
-│   ├── 02-ddl-ctg.sql       # Catalog tables
-│   ├── 03-ddl-cs.sql        # Customer tables
-│   ├── 04-ddl-pay.sql       # Payment tables
-│   ├── 05-ddl-ship.sql      # Shipment tables
-│   └── 06-ddl-extensions.sql# document_types + phone_number + FK columns
-├── functions/               # Business logic functions
-│   ├── ctg_functions.sql    # convert_usd_to_cop, update_category_id
-│   └── pay_functions.sql    # update_total_orders
-├── triggers/                # Automatic triggers
-│   ├── ctg_triggers.sql     # Price conversion on product insert
-│   ├── generic_triggers.sql # updated_at maintenance
-│   └── ship_triggers.sql    # Shipment order validation
+├── ddl/                        # Definición del esquema — ejecutar en orden numérico
+│   ├── 01-ddl-database.sql     # BD, usuario y esquemas
+│   ├── 02-ddl-ctg.sql          # Tablas de catálogo
+│   ├── 03-ddl-cs.sql           # Tablas de clientes
+│   ├── 04-ddl-pay.sql          # Tablas de pagos
+│   ├── 05-ddl-ship.sql         # Tablas de envíos
+│   └── 06-ddl-extensions.sql   # document_types + phone_number + columnas FK
+├── functions/                  # Funciones de negocio
+│   ├── ctg_functions.sql       # convert_usd_to_cop, update_category_id
+│   └── pay_functions.sql       # update_total_orders
+├── triggers/                   # Triggers automáticos
+│   ├── ctg_triggers.sql        # Conversión de precio al insertar producto
+│   ├── generic_triggers.sql    # Mantenimiento de updated_at
+│   └── ship_triggers.sql       # Validación de órdenes de envío
 ├── index/
-│   └── pay_orders_items.sql # FK index on shipment_orders(order_id)
+│   └── pay_orders_items.sql    # Índice FK en shipment_orders(order_id)
 ├── notebooks/
 │   └── data-wrangling-basic.ipynb
-├── pipelines/               # Instructor use — bulk data generation
+├── pipelines/                  # Solo para el profesor — generación masiva de datos
 │   └── insert-bulk-load-data/
-└── python-scripts/          # Instructor use — synthetic data generators
+└── python-scripts/             # Solo para el profesor — generadores de datos sintéticos
 ```
 
 ---
 
-## Notes
+## Notas técnicas
 
-- `ctg.products.cop_price` is always populated via `ctg.convert_usd_to_cop()`, never manually.
-- `pay.orders.total` is always populated via `pay.update_total_orders()` or the insert trigger, never manually.
-- `ship.shipment_orders` validates order existence and prevents duplicate assignments through a `BEFORE INSERT` trigger.
-- The `updated_at` field in `cs.addresses` and `ship.shipment_orders` is maintained automatically by `trg_set_updated_at()`.
-- The index in `scripts/index/pay_orders_items.sql` is critical for bulk load performance — without it, loading 30 batches of shipment orders takes ~25 minutes instead of ~14 seconds.
+- `ctg.products.cop_price` siempre se llena via `ctg.convert_usd_to_cop()`, nunca manualmente.
+- `pay.orders.total` siempre se llena via `pay.update_total_orders()` o el trigger de inserción, nunca manualmente.
+- `ship.shipment_orders` valida la existencia de la orden y previene asignaciones duplicadas a través de un trigger `BEFORE INSERT`.
+- El campo `updated_at` en `cs.addresses` y `ship.shipment_orders` se mantiene automáticamente por `trg_set_updated_at()`.
+- El índice en `scripts/index/pay_orders_items.sql` es crítico para el rendimiento en cargas masivas — sin él, cargar 30 lotes de envíos toma ~25 minutos en lugar de ~14 segundos.
 
 ---
 
-## Legacy files
+## Archivos legacy
 
-Previous versions of scripts and the original INSERT data files are preserved in `_legacy/` for historical reference. They are not part of the active setup flow.
+Versiones anteriores de los scripts y los archivos INSERT originales están preservados en `_legacy/` como referencia histórica. No hacen parte del flujo de configuración activo.
