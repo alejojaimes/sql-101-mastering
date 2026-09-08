@@ -83,5 +83,10 @@ content/fintech-accelator/scripts/pipelines/create-fake-data/reproduce_transacti
 
 content/smart-health/data/sql/
 
-# Customers bulk loads
+# Customers bulk loads (generated artifacts)
 content/customers/data/sql/bulk-load/
+
+# Customers DB dump (large binary — share via external link)
+content/customers/data/dump/*.dump
+content/customers/data/dump/*.backup
+content/customers/data/dump/*.sql

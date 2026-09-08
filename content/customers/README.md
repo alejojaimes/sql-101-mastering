@@ -1,228 +1,224 @@
-# Clean Execution | Customers DB
+# Customers DB — Setup Guide
 
-> Created: 14 March 2026
+> Last updated: September 2026
 
-## Version History
+## Overview
 
-| Author | Description | Date |
-|---|---|---|
-| Juan Alejandro Carrillo Jaimes | First version of document | 14 March 2026 |
-| Juan Alejandro Carrillo Jaimes | Update with separate schema and real information | 20 March 2026 |
-| Juan Alejandro Carrillo Jaimes | Additional data generated for customers, addresses, orders, order items and shipment orders | 22 March 2026 |
-| Juan Alejandro Carrillo Jaimes | Additional data generated for orders, order items and shipment orders | 23 March 2026 |
-| Juan Alejandro Carrillo Jaimes | Additional data generated for orders, order items and shipment orders. Additional Bulk Information Process | 28 March 2026 |
-
----
-
-## Schema Architecture
-
-The database is organized in five schemas, each with a clearly delimited responsibility.
+`customers_db` is a PostgreSQL database that models an e-commerce operation. It contains ~750 K rows across four schemas and is used as the hands-on dataset for SQL 101 classes.
 
 | Schema | Responsibility |
 |---|---|
-| `ctg` | Catalogs: departments, municipalities, categories, payment methods |
-| `cs` | Core: customers and addresses |
-| `pay` | Payments: orders and order items with payment method reference |
-| `ship` | Shipments: shipping companies and shipment orders |
+| `ctg` | Catalogs — departments, municipalities, categories, products, payment methods, document types |
+| `cs` | Core — customers and addresses |
+| `pay` | Payments — orders and order items |
+| `ship` | Shipments — shipping companies and shipment orders |
+
+### Row counts (reference semester)
+
+| Table | Rows |
+|---|---|
+| `pay.order_items` | 485,333 |
+| `pay.orders` | 121,359 |
+| `ship.shipment_orders` | 121,359 |
+| `cs.customers` | 21,254 |
+| `cs.addresses` | 21,254 |
+| `ctg.municipalities` | 1,102 |
+| `ctg.products` | 75 |
+| `ctg.departments` | 33 |
+| `ctg.categories` | 20 |
+| `ctg.document_types` | 13 |
+| `ctg.payment_methods` | 10 |
+| `ship.ship_company` | 10 |
 
 ---
 
-## Execution Steps
+## Setup
 
-### 1. Clean environment
+There are two ways to get the database running. **Option A** is the recommended path for students at the start of the semester — it is the fastest. **Option B** walks through every DDL step and is used when the goal is to practice schema creation.
 
-Drop all existing objects before a fresh execution.
+---
+
+### Option A — Import from dump (recommended)
+
+This restores the full database in one command.
+
+**Prerequisites:** PostgreSQL 16, a running instance, and the dump file from your instructor placed at `data/dump/customers_db_YYYYMMDD.dump` (see `data/dump/README.md`).
+
+**Step 1 — Create the database**
+
+Connect as a superuser and run:
 
 ```sql
--- scripts/01-delete-objects.sql
--- Update object names if they differ from your local setup.
+CREATE USER admin WITH PASSWORD 'test25**';
+
+CREATE DATABASE customers_db WITH
+    OWNER admin
+    ENCODING 'UTF8'
+    LC_COLLATE 'en_US.UTF-8'
+    LC_CTYPE 'en_US.UTF-8'
+    TEMPLATE template0;
+
+GRANT ALL PRIVILEGES ON DATABASE customers_db TO admin;
 ```
 
-### 2. Create schemas
+**Step 2 — Restore**
+
+```sh
+pg_restore \
+  -U admin \
+  -h localhost \
+  -p 5433 \
+  -d customers_db \
+  --no-owner \
+  content/customers/data/dump/customers_db_YYYYMMDD.dump
+```
+
+**Step 3 — Validate**
 
 ```sql
-CREATE SCHEMA cs    AUTHORIZATION admin;
-CREATE SCHEMA pay   AUTHORIZATION admin;
-CREATE SCHEMA ship  AUTHORIZATION admin;
-CREATE SCHEMA ctg   AUTHORIZATION admin;
+SELECT
+    schemaname,
+    tablename,
+    (xpath('/row/c/text()', query_to_xml(
+        format('SELECT COUNT(*) AS c FROM %I.%I', schemaname, tablename),
+        false, true, ''))
+    )[1]::text::int AS total_rows
+FROM pg_catalog.pg_tables
+WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
+ORDER BY schemaname, tablename;
 ```
 
-### 3. Create tables
+---
 
-Execute DDL scripts in the following order to respect foreign key dependencies.
+### Option B — Manual setup (DDL practice)
+
+Use this when the class objective is to build the schema from scratch.
+
+**Step 1 — Create database, user, and schemas**
 
 ```
-scripts/ddl/01-ddl-customers.sql
+scripts/ddl/01-ddl-database.sql
+```
+
+**Step 2 — Create tables**
+
+Execute in order to respect foreign key dependencies:
+
+```
 scripts/ddl/02-ddl-ctg.sql
 scripts/ddl/03-ddl-cs.sql
 scripts/ddl/04-ddl-pay.sql
 scripts/ddl/05-ddl-ship.sql
 ```
 
-Verify table creation:
+**Step 3 — Create extensions**
 
-```sql
-SELECT tablename
-FROM pg_catalog.pg_tables
-WHERE schemaname = 'cs'
-ORDER BY tablename;
+Adds `ctg.document_types`, `cs.phone_number`, and the relationship columns:
+
+```
+scripts/ddl/06-ddl-extensions.sql
 ```
 
-### 4. Create functions and triggers
+**Step 4 — Create functions**
 
-Execute statements one by one to isolate any errors.
+Execute statements one by one to isolate any errors:
 
 ```
 scripts/functions/ctg_functions.sql
 scripts/functions/pay_functions.sql
+```
+
+**Step 5 — Create triggers**
+
+```
 scripts/triggers/ctg_triggers.sql
 scripts/triggers/generic_triggers.sql
 scripts/triggers/ship_triggers.sql
-scripts/03-functions_and_triggers.sql
 ```
 
-### 5. Insert data — initial load
-
-#### Catalogs
+**Step 6 — Create indexes**
 
 ```
-data/sql/catalogs/01-INSERT-DEPARTMENTS.sql
-data/sql/catalogs/02-INSERT-MUNICIPALITIES.sql
-data/sql/catalogs/03-INSERT-CATEGORIES.sql
-data/sql/catalogs/04-INSERT-PRODUCTS.sql
-data/sql/catalogs/05-PAYMENT-METHODS.sql
+scripts/index/pay_orders_items.sql
 ```
 
-#### Customers
+**Step 7 — Import data**
 
-```
-data/sql/customers/customers_20260320.sql
-data/sql/customers/addresses_20260320.sql
-```
+After completing steps 1–6, restore only the data from the dump:
 
-#### Orders
-
-```
-data/sql/payments/orders_20260320.sql
-data/sql/payments/orders_items_20260320.sql
-```
-
-#### Shipments
-
-```
-data/sql/shipments/06-INSERT-SHIP-COMPANY.sql
-data/sql/shipments/shipment_orders_20260320.sql
+```sh
+pg_restore \
+  -U admin \
+  -h localhost \
+  -p 5433 \
+  -d customers_db \
+  --no-owner \
+  --data-only \
+  content/customers/data/dump/customers_db_YYYYMMDD.dump
 ```
 
-### 6. Execute price conversion
-
-Converts all `usd_price` values to `cop_price` using a fixed exchange rate.
+**Step 8 — Validate**
 
 ```sql
-SELECT ctg.convert_usd_to_cop();
--- Expected: Rows affected: 46
-```
-
-### 7. Calculate order totals
-
-Populates the `total` field in `pay.orders` based on order items and product prices.
-
-```sql
-SELECT pay.update_total_orders();
--- Expected: Rows affected: 250
-```
-
-### 8. Validate load
-
-```sql
-SELECT COUNT(*)
-FROM pay.orders
-WHERE total IS NULL;
--- Expected: 0
-```
-
-```sql
-SELECT 'cs.addresses'          AS table_name, COUNT(*) AS total FROM cs.addresses
-UNION ALL SELECT 'cs.customers',              COUNT(*) FROM cs.customers
-UNION ALL SELECT 'ctg.categories',            COUNT(*) FROM ctg.categories
-UNION ALL SELECT 'ctg.departments',           COUNT(*) FROM ctg.departments
-UNION ALL SELECT 'ctg.municipalities',        COUNT(*) FROM ctg.municipalities
-UNION ALL SELECT 'ctg.payment_methods',       COUNT(*) FROM ctg.payment_methods
-UNION ALL SELECT 'ctg.products',              COUNT(*) FROM ctg.products
-UNION ALL SELECT 'pay.order_items',           COUNT(*) FROM pay.order_items
-UNION ALL SELECT 'pay.orders',                COUNT(*) FROM pay.orders
-UNION ALL SELECT 'ship.shipment_orders',      COUNT(*) FROM ship.shipment_orders
-UNION ALL SELECT 'ship.ship_company',         COUNT(*) FROM ship.ship_company;
-```
-
----
-
-## Incremental Loads
-
-Incremental loads are delta files applied on top of the initial historical load. Execute them in order after the initial load is complete.
-
-### Delta 20260322
-
-Additional data generated for customers, addresses, orders, order items and shipment orders.
-
-```
-data/sql/customers/customers_20260322.sql
-data/sql/customers/addresses_20260322.sql
-data/sql/payments/orders_20260322.sql
-data/sql/payments/orders_items_20260322.sql
-data/sql/shipments/shipment_orders_20260322.sql
-```
-
-### Delta 20260323
-
-Additional data generated for orders and shipment orders.
-
-```
-data/sql/payments/orders_variety_20260323.sql
-data/sql/payments/orders_items_variety_20260323.sql
-data/sql/payments/orders_update_20260323.sql
-data/sql/shipments/shipment_orders_variety_20260323.sql
-```
-
-### Delta 20260328
-
-Additional data generated for orders and shipment orders.
-
-```
-data/sql/customers/customers_20260328.sql
-data/sql/customers/addresses_20260328.sql
-data/sql/payments/orders_20260328.sql
-data/sql/payments/orders_items_20260328.sql
-data/sql/shipments/shipment_orders_20260328.sql
-```
-
-After each delta, re-run the totals function and validate:
-
-```sql
-SELECT pay.update_total_orders();
-
 SELECT COUNT(*) FROM pay.orders WHERE total IS NULL;
 -- Expected: 0
 ```
 
 ---
 
-## Python Scripts
+## Queries — Class exercises
 
-Data generation utilities used to populate the database with synthetic data.
+Practice queries are organized by class date under `queries/class/`. Open them in order:
 
-| Script | Responsibility |
+| File | Topics |
 |---|---|
-| `colombian_addr_generator.py` | Generates Colombian addresses with municipality codes |
-| `generate_dummy_data.py` | Generates customers, orders and order items |
-| `helper_functions.py` | Shared utilities: ID generation, deduplication, formatting |
-| `shipment_generator.py` | Generates shipment orders with tracking codes |
+| `queries/class/queries-100326.sql` | COUNT, UNION, GROUP BY, EXTRACT, FILTER |
+| `queries/class/queries-130326.sql` | JOINs introduction |
+| `queries/class/queries-200326.sql` | Aggregations and subqueries |
+| `queries/class/queries-230326.sql` | Window functions |
+| `queries/class/queries-240326.sql` | CTEs and advanced filtering |
+
+---
+
+## Scripts reference
+
+```
+scripts/
+├── ddl/                     # Schema definition — run in numeric order
+│   ├── 01-ddl-database.sql  # DB, user, schemas
+│   ├── 02-ddl-ctg.sql       # Catalog tables
+│   ├── 03-ddl-cs.sql        # Customer tables
+│   ├── 04-ddl-pay.sql       # Payment tables
+│   ├── 05-ddl-ship.sql      # Shipment tables
+│   └── 06-ddl-extensions.sql# document_types + phone_number + FK columns
+├── functions/               # Business logic functions
+│   ├── ctg_functions.sql    # convert_usd_to_cop, update_category_id
+│   └── pay_functions.sql    # update_total_orders
+├── triggers/                # Automatic triggers
+│   ├── ctg_triggers.sql     # Price conversion on product insert
+│   ├── generic_triggers.sql # updated_at maintenance
+│   └── ship_triggers.sql    # Shipment order validation
+├── index/
+│   └── pay_orders_items.sql # FK index on shipment_orders(order_id)
+├── notebooks/
+│   └── data-wrangling-basic.ipynb
+├── pipelines/               # Instructor use — bulk data generation
+│   └── insert-bulk-load-data/
+└── python-scripts/          # Instructor use — synthetic data generators
+```
 
 ---
 
 ## Notes
 
-- The `cop_price` field in `ctg.products` is always populated via `ctg.convert_usd_to_cop()`, never manually.
-- The `total` field in `pay.orders` is always populated via `pay.update_total_orders()` or the associated trigger, never manually.
-- The `shipment_orders` table references `pay.orders` through `order_id`. The relationship is enforced by a `BEFORE INSERT` trigger that validates order existence and prevents duplicate shipment assignments.
-- The `updated_at` field in `cs.addresses` and `ship.shipment_orders` is maintained automatically by the `trg_set_updated_at()` trigger.
+- `ctg.products.cop_price` is always populated via `ctg.convert_usd_to_cop()`, never manually.
+- `pay.orders.total` is always populated via `pay.update_total_orders()` or the insert trigger, never manually.
+- `ship.shipment_orders` validates order existence and prevents duplicate assignments through a `BEFORE INSERT` trigger.
+- The `updated_at` field in `cs.addresses` and `ship.shipment_orders` is maintained automatically by `trg_set_updated_at()`.
+- The index in `scripts/index/pay_orders_items.sql` is critical for bulk load performance — without it, loading 30 batches of shipment orders takes ~25 minutes instead of ~14 seconds.
+
+---
+
+## Legacy files
+
+Previous versions of scripts and the original INSERT data files are preserved in `_legacy/` for historical reference. They are not part of the active setup flow.
