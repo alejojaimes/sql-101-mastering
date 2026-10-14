@@ -1,131 +1,237 @@
 -- ##################################################
 -- #        COFFEE COOP ALTER TABLE SCRIPT          #
 -- ##################################################
--- This script adds the CHECK constraints (domain and business rules) and the
--- indexes on foreign keys for the Coffee Cooperative database.
+-- This script adds all the constraints of the Coffee Cooperative database:
+--   1. FOREIGN KEY  relationships between tables
+--   2. UNIQUE       values that cannot be repeated
+--   3. CHECK        valid values for some columns
 -- Naming convention:
---   chk_<table>_<rule>   CHECK constraint
---   idx_<table>_<column> index
+--   fk_<table>_<referenced table>
+--   uq_<table>_<column(s)>
+--   chk_<table>_<column>
 -- RUN IN coffee_coop_db - cc_admin, after 02-create-tables.sql
 
 -- ##################################################
--- #          CHECK CONSTRAINTS - FARM MODULE       #
+-- #          1. FOREIGN KEYS                       #
+-- ##################################################
+
+-- Relationships for MUNICIPALITIES
+
+ALTER TABLE geo.municipalities ADD CONSTRAINT fk_municipalities_departments
+    FOREIGN KEY (department_code) REFERENCES geo.departments (department_code)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+-- Relationships for FARMERS
+
+ALTER TABLE farm.farmers ADD CONSTRAINT fk_farmers_municipalities
+    FOREIGN KEY (municipality_code) REFERENCES geo.municipalities (municipality_code)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+-- Relationships for FARMS
+
+ALTER TABLE farm.farms ADD CONSTRAINT fk_farms_farmers
+    FOREIGN KEY (farmer_id) REFERENCES farm.farmers (farmer_id)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+ALTER TABLE farm.farms ADD CONSTRAINT fk_farms_municipalities
+    FOREIGN KEY (municipality_code) REFERENCES geo.municipalities (municipality_code)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+-- Relationships for PLOTS
+
+ALTER TABLE farm.plots ADD CONSTRAINT fk_plots_farms
+    FOREIGN KEY (farm_id) REFERENCES farm.farms (farm_id)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+-- Relationships for PLOT_VARIETIES (N:M)
+
+ALTER TABLE farm.plot_varieties ADD CONSTRAINT fk_plot_varieties_plots
+    FOREIGN KEY (plot_id) REFERENCES farm.plots (plot_id)
+    ON UPDATE CASCADE ON DELETE CASCADE;
+
+ALTER TABLE farm.plot_varieties ADD CONSTRAINT fk_plot_varieties_coffee_varieties
+    FOREIGN KEY (variety_id) REFERENCES farm.coffee_varieties (variety_id)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+-- Relationships for FARM_CERTIFICATIONS (N:M)
+
+ALTER TABLE farm.farm_certifications ADD CONSTRAINT fk_farm_certifications_farms
+    FOREIGN KEY (farm_id) REFERENCES farm.farms (farm_id)
+    ON UPDATE CASCADE ON DELETE CASCADE;
+
+ALTER TABLE farm.farm_certifications ADD CONSTRAINT fk_farm_certifications_certifications
+    FOREIGN KEY (certification_id) REFERENCES farm.certifications (certification_id)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+-- Relationships for COLLECTION_POINTS
+
+ALTER TABLE buy.collection_points ADD CONSTRAINT fk_collection_points_municipalities
+    FOREIGN KEY (municipality_code) REFERENCES geo.municipalities (municipality_code)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+-- Relationships for DAILY_PRICES
+
+ALTER TABLE buy.daily_prices ADD CONSTRAINT fk_daily_prices_collection_points
+    FOREIGN KEY (collection_point_id) REFERENCES buy.collection_points (collection_point_id)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+-- Relationships for DELIVERIES
+
+ALTER TABLE buy.deliveries ADD CONSTRAINT fk_deliveries_farms
+    FOREIGN KEY (farm_id) REFERENCES farm.farms (farm_id)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+ALTER TABLE buy.deliveries ADD CONSTRAINT fk_deliveries_collection_points
+    FOREIGN KEY (collection_point_id) REFERENCES buy.collection_points (collection_point_id)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+-- Relationships for QUALITY_ANALYSES (1:1 with DELIVERIES)
+
+ALTER TABLE buy.quality_analyses ADD CONSTRAINT fk_quality_analyses_deliveries
+    FOREIGN KEY (delivery_id) REFERENCES buy.deliveries (delivery_id)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+-- Relationships for SETTLEMENTS (1:1 with DELIVERIES)
+
+ALTER TABLE pay.settlements ADD CONSTRAINT fk_settlements_deliveries
+    FOREIGN KEY (delivery_id) REFERENCES buy.deliveries (delivery_id)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+ALTER TABLE pay.settlements ADD CONSTRAINT fk_settlements_daily_prices
+    FOREIGN KEY (daily_price_id) REFERENCES buy.daily_prices (daily_price_id)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+-- Relationships for PAYMENTS
+
+ALTER TABLE pay.payments ADD CONSTRAINT fk_payments_settlements
+    FOREIGN KEY (settlement_id) REFERENCES pay.settlements (settlement_id)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+-- ##################################################
+-- #          2. UNIQUE CONSTRAINTS                 #
 -- ##################################################
 
 -- ============================================
--- FARMERS
+-- GEO
+-- ============================================
+
+-- Two departments cannot have the same name
+ALTER TABLE geo.departments
+ADD CONSTRAINT uq_departments_name UNIQUE (department_name);
+
+-- A municipality name cannot be repeated inside the same department
+ALTER TABLE geo.municipalities
+ADD CONSTRAINT uq_municipalities_department_name UNIQUE (department_code, municipality_name);
+
+-- ============================================
+-- FARM
+-- ============================================
+
+ALTER TABLE farm.farmers
+ADD CONSTRAINT uq_farmers_document_number UNIQUE (document_number);
+
+ALTER TABLE farm.farmers
+ADD CONSTRAINT uq_farmers_email UNIQUE (email);
+
+-- A farmer cannot have two farms with the same name
+ALTER TABLE farm.farms
+ADD CONSTRAINT uq_farms_farmer_name UNIQUE (farmer_id, farm_name);
+
+-- A plot code cannot be repeated inside the same farm
+ALTER TABLE farm.plots
+ADD CONSTRAINT uq_plots_farm_code UNIQUE (farm_id, plot_code);
+
+ALTER TABLE farm.coffee_varieties
+ADD CONSTRAINT uq_coffee_varieties_name UNIQUE (variety_name);
+
+-- A variety cannot be registered twice in the same plot
+ALTER TABLE farm.plot_varieties
+ADD CONSTRAINT uq_plot_varieties_plot_variety UNIQUE (plot_id, variety_id);
+
+ALTER TABLE farm.certifications
+ADD CONSTRAINT uq_certifications_name UNIQUE (certification_name);
+
+-- A farm cannot start the same certification twice on the same date
+ALTER TABLE farm.farm_certifications
+ADD CONSTRAINT uq_farm_certifications_period UNIQUE (farm_id, certification_id, start_date);
+
+ALTER TABLE farm.farm_certifications
+ADD CONSTRAINT uq_farm_certifications_number UNIQUE (certificate_number);
+
+-- ============================================
+-- BUY
+-- ============================================
+
+ALTER TABLE buy.collection_points
+ADD CONSTRAINT uq_collection_points_name UNIQUE (point_name);
+
+-- A collection point publishes only one price per day
+ALTER TABLE buy.daily_prices
+ADD CONSTRAINT uq_daily_prices_point_date UNIQUE (collection_point_id, price_date);
+
+-- Only one quality analysis per delivery (1:1)
+ALTER TABLE buy.quality_analyses
+ADD CONSTRAINT uq_quality_analyses_delivery UNIQUE (delivery_id);
+
+-- ============================================
+-- PAY
+-- ============================================
+
+-- Only one settlement per delivery (1:1)
+ALTER TABLE pay.settlements
+ADD CONSTRAINT uq_settlements_delivery UNIQUE (delivery_id);
+
+ALTER TABLE pay.payments
+ADD CONSTRAINT uq_payments_transaction_reference UNIQUE (transaction_reference);
+
+-- ##################################################
+-- #          3. CHECK CONSTRAINTS                  #
+-- ##################################################
+
+-- ============================================
+-- FARM
 -- ============================================
 
 ALTER TABLE farm.farmers
 ADD CONSTRAINT chk_farmers_gender
 CHECK (gender IN ('M', 'F', 'O'));
 
--- A farmer must be at least 18 years old when joining the cooperative
-ALTER TABLE farm.farmers
-ADD CONSTRAINT chk_farmers_adult_member
-CHECK (membership_date >= birth_date + INTERVAL '18 years');
-
-ALTER TABLE farm.farmers
-ADD CONSTRAINT chk_farmers_email_format
-CHECK (email IS NULL OR email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$');
-
-ALTER TABLE farm.farmers
-ADD CONSTRAINT chk_farmers_document_digits
-CHECK (document_number ~ '^[0-9]{6,12}$');
-
--- ============================================
--- FARMS
--- ============================================
-
 ALTER TABLE farm.farms
 ADD CONSTRAINT chk_farms_total_area
 CHECK (total_area_ha > 0);
-
-ALTER TABLE farm.farms
-ADD CONSTRAINT chk_farms_altitude
-CHECK (altitude_masl BETWEEN 0 AND 3500);
-
--- Coordinates must fall inside the bounding box of Colombia
-ALTER TABLE farm.farms
-ADD CONSTRAINT chk_farms_latitude
-CHECK (latitude IS NULL OR latitude BETWEEN -4.30 AND 13.50);
-
-ALTER TABLE farm.farms
-ADD CONSTRAINT chk_farms_longitude
-CHECK (longitude IS NULL OR longitude BETWEEN -82.00 AND -66.80);
-
--- Latitude and longitude are registered together or not at all
-ALTER TABLE farm.farms
-ADD CONSTRAINT chk_farms_coordinates_pair
-CHECK ((latitude IS NULL) = (longitude IS NULL));
-
--- ============================================
--- PLOTS
--- ============================================
 
 ALTER TABLE farm.plots
 ADD CONSTRAINT chk_plots_area
 CHECK (area_ha > 0);
 
 ALTER TABLE farm.plots
-ADD CONSTRAINT chk_plots_planting_year
-CHECK (planting_year >= 1950);
-
-ALTER TABLE farm.plots
 ADD CONSTRAINT chk_plots_shade_type
 CHECK (shade_type IN ('full_sun', 'partial_shade', 'full_shade'));
-
--- ============================================
--- COFFEE VARIETIES
--- ============================================
 
 ALTER TABLE farm.coffee_varieties
 ADD CONSTRAINT chk_coffee_varieties_species
 CHECK (species IN ('arabica', 'robusta'));
 
--- ============================================
--- PLOT VARIETIES
--- ============================================
-
 ALTER TABLE farm.plot_varieties
 ADD CONSTRAINT chk_plot_varieties_percentage
 CHECK (planted_percentage > 0 AND planted_percentage <= 100);
-
-ALTER TABLE farm.plot_varieties
-ADD CONSTRAINT chk_plot_varieties_tree_count
-CHECK (tree_count > 0);
-
--- ============================================
--- CERTIFICATIONS
--- ============================================
 
 ALTER TABLE farm.certifications
 ADD CONSTRAINT chk_certifications_premium
 CHECK (premium_per_kg >= 0);
 
+-- The end date must be after the start date (NULL means the certification is still valid)
 ALTER TABLE farm.farm_certifications
-ADD CONSTRAINT chk_farm_certifications_period
-CHECK (end_date IS NULL OR end_date > start_date);
-
--- ##################################################
--- #          CHECK CONSTRAINTS - BUY MODULE        #
--- ##################################################
+ADD CONSTRAINT chk_farm_certifications_dates
+CHECK (end_date > start_date);
 
 -- ============================================
--- DAILY PRICES
+-- BUY
 -- ============================================
 
 ALTER TABLE buy.daily_prices
 ADD CONSTRAINT chk_daily_prices_price
 CHECK (price_per_kg > 0);
-
-ALTER TABLE buy.daily_prices
-ADD CONSTRAINT chk_daily_prices_yield_factor
-CHECK (reference_yield_factor BETWEEN 70 AND 120);
-
--- ============================================
--- DELIVERIES
--- ============================================
 
 ALTER TABLE buy.deliveries
 ADD CONSTRAINT chk_deliveries_coffee_type
@@ -143,37 +249,12 @@ ALTER TABLE buy.deliveries
 ADD CONSTRAINT chk_deliveries_gross_weight
 CHECK (gross_weight_kg > 0);
 
--- ============================================
--- QUALITY ANALYSES
--- ============================================
-
 ALTER TABLE buy.quality_analyses
 ADD CONSTRAINT chk_quality_analyses_moisture
 CHECK (moisture_pct BETWEEN 0 AND 100);
 
-ALTER TABLE buy.quality_analyses
-ADD CONSTRAINT chk_quality_analyses_yield_factor
-CHECK (yield_factor BETWEEN 70 AND 120);
-
-ALTER TABLE buy.quality_analyses
-ADD CONSTRAINT chk_quality_analyses_defects
-CHECK (defects_pct BETWEEN 0 AND 100);
-
-ALTER TABLE buy.quality_analyses
-ADD CONSTRAINT chk_quality_analyses_cup_score
-CHECK (cup_score IS NULL OR cup_score BETWEEN 0 AND 100);
-
--- Business rule: an accepted delivery must have moisture between 10% and 12.5%
-ALTER TABLE buy.quality_analyses
-ADD CONSTRAINT chk_quality_analyses_accepted_moisture
-CHECK (NOT is_accepted OR moisture_pct BETWEEN 10 AND 12.5);
-
--- ##################################################
--- #          CHECK CONSTRAINTS - PAY MODULE        #
--- ##################################################
-
 -- ============================================
--- SETTLEMENTS
+-- PAY
 -- ============================================
 
 ALTER TABLE pay.settlements
@@ -184,18 +265,13 @@ ALTER TABLE pay.settlements
 ADD CONSTRAINT chk_settlements_price
 CHECK (price_per_kg_applied > 0);
 
--- Deductions cannot be negative nor exceed the gross amount
 ALTER TABLE pay.settlements
 ADD CONSTRAINT chk_settlements_deductions
-CHECK (deductions_amount >= 0 AND deductions_amount <= ROUND(net_weight_kg * price_per_kg_applied, 2));
+CHECK (deductions_amount >= 0);
 
 ALTER TABLE pay.settlements
 ADD CONSTRAINT chk_settlements_status
 CHECK (status IN ('pending', 'partially_paid', 'paid', 'cancelled'));
-
--- ============================================
--- PAYMENTS
--- ============================================
 
 ALTER TABLE pay.payments
 ADD CONSTRAINT chk_payments_amount
@@ -204,39 +280,6 @@ CHECK (amount > 0);
 ALTER TABLE pay.payments
 ADD CONSTRAINT chk_payments_method
 CHECK (payment_method IN ('cash', 'bank_transfer', 'check'));
-
--- Non-cash payments must carry a bank or check reference
-ALTER TABLE pay.payments
-ADD CONSTRAINT chk_payments_reference_required
-CHECK (payment_method = 'cash' OR transaction_reference IS NOT NULL);
-
--- ##################################################
--- #          INDEXES ON FOREIGN KEYS               #
--- ##################################################
--- PostgreSQL does not index foreign keys automatically.
--- FKs that are already the first column of a PK or UNIQUE constraint are skipped.
-
-CREATE INDEX IF NOT EXISTS idx_municipalities_department_code ON geo.municipalities (department_code);
-CREATE INDEX IF NOT EXISTS idx_farmers_municipality_code     ON farm.farmers (municipality_code);
-CREATE INDEX IF NOT EXISTS idx_farms_municipality_code       ON farm.farms (municipality_code);
-CREATE INDEX IF NOT EXISTS idx_plot_varieties_variety_id     ON farm.plot_varieties (variety_id);
-CREATE INDEX IF NOT EXISTS idx_farm_certifications_cert_id   ON farm.farm_certifications (certification_id);
-CREATE INDEX IF NOT EXISTS idx_collection_points_municipality ON buy.collection_points (municipality_code);
-CREATE INDEX IF NOT EXISTS idx_deliveries_farm_id            ON buy.deliveries (farm_id);
-CREATE INDEX IF NOT EXISTS idx_deliveries_collection_point   ON buy.deliveries (collection_point_id, delivered_at);
-CREATE INDEX IF NOT EXISTS idx_settlements_daily_price_id    ON pay.settlements (daily_price_id);
-CREATE INDEX IF NOT EXISTS idx_payments_settlement_id        ON pay.payments (settlement_id);
-
--- ##################################################
--- #   BUSINESS RULES PENDING (REQUIRE TRIGGERS)    #
--- ##################################################
--- These rules involve more than one row or table, so a CHECK cannot enforce them:
---   1. The sum of plots.area_ha of a farm must not exceed farms.total_area_ha.
---   2. The sum of plot_varieties.planted_percentage of a plot must not exceed 100.
---   3. settlements.net_weight_kg must not exceed deliveries.gross_weight_kg.
---   4. A settlement can only exist for a delivery whose quality analysis is accepted.
---   5. The sum of payments.amount must not exceed settlements.net_amount.
---   6. A farm cannot have two overlapping periods for the same certification.
 
 -- ##################################################
 -- #                 END OF SCRIPT                  #

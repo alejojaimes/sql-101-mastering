@@ -32,14 +32,14 @@ erDiagram
 
     FARMERS {
         int farmer_id PK
-        varchar document_number "UNIQUE, CHECK(6-12 digits), NOT NULL"
+        varchar document_number "UNIQUE, NOT NULL"
         varchar first_name "NOT NULL"
         varchar last_name "NOT NULL"
         date birth_date "NOT NULL"
         char gender "CHECK(M,F,O), NOT NULL"
         varchar phone_number "NOT NULL"
-        varchar email "UNIQUE, CHECK(format), NULL"
-        date membership_date "CHECK(age >= 18), DEFAULT CURRENT_DATE"
+        varchar email "UNIQUE, NULL"
+        date membership_date "DEFAULT CURRENT_DATE"
         boolean is_active "DEFAULT TRUE"
         varchar municipality_code FK "NOT NULL"
     }
@@ -51,9 +51,9 @@ erDiagram
         varchar farm_name "UNIQUE(farmer_id, farm_name), NOT NULL"
         varchar rural_district "NOT NULL"
         numeric total_area_ha "CHECK(> 0), NOT NULL"
-        int altitude_masl "CHECK(0-3500), NOT NULL"
-        numeric latitude "CHECK(Colombia), NULL"
-        numeric longitude "CHECK(Colombia), NULL"
+        int altitude_masl "NOT NULL"
+        numeric latitude "NULL"
+        numeric longitude "NULL"
         timestamp registered_at "DEFAULT CURRENT_TIMESTAMP"
     }
 
@@ -62,7 +62,7 @@ erDiagram
         int farm_id FK "NOT NULL"
         varchar plot_code "UNIQUE(farm_id, plot_code), NOT NULL"
         numeric area_ha "CHECK(> 0), NOT NULL"
-        smallint planting_year "CHECK(>= 1950), NOT NULL"
+        smallint planting_year "NOT NULL"
         varchar shade_type "CHECK(full_sun,partial_shade,full_shade)"
     }
 
@@ -79,7 +79,7 @@ erDiagram
         int plot_id FK "UNIQUE(plot_id, variety_id), NOT NULL"
         int variety_id FK "NOT NULL"
         numeric planted_percentage "CHECK(> 0 AND <= 100), NOT NULL"
-        int tree_count "CHECK(> 0), NOT NULL"
+        int tree_count "NOT NULL"
     }
 
     CERTIFICATIONS {
@@ -121,11 +121,11 @@ erDiagram
         int collection_point_id FK "UNIQUE(point, date), NOT NULL"
         date price_date "NOT NULL"
         numeric price_per_kg "CHECK(> 0), NOT NULL"
-        numeric reference_yield_factor "CHECK(70-120), DEFAULT 94"
+        numeric reference_yield_factor "DEFAULT 94"
     }
 
     DELIVERIES {
-        int delivery_id PK
+        varchar delivery_id PK "DLV-YYYYMMDD-NNNNNN"
         int farm_id FK "NOT NULL"
         int collection_point_id FK "NOT NULL"
         timestamp delivered_at "DEFAULT CURRENT_TIMESTAMP"
@@ -136,14 +136,14 @@ erDiagram
     }
 
     QUALITY_ANALYSES {
-        int analysis_id PK
-        int delivery_id FK "UNIQUE, NOT NULL"
+        varchar analysis_id PK "QA-YYYYMMDD-NNNNNN"
+        varchar delivery_id FK "UNIQUE, NOT NULL"
         timestamp analyzed_at "DEFAULT CURRENT_TIMESTAMP"
         numeric moisture_pct "CHECK(0-100), NOT NULL"
-        numeric yield_factor "CHECK(70-120), NOT NULL"
-        numeric defects_pct "CHECK(0-100), DEFAULT 0"
-        numeric cup_score "CHECK(0-100), NULL"
-        boolean is_accepted "CHECK(accepted => moisture 10-12.5)"
+        numeric yield_factor "NOT NULL"
+        numeric defects_pct "DEFAULT 0"
+        numeric cup_score "NULL"
+        boolean is_accepted "NOT NULL"
         varchar analyst_name "NOT NULL"
         text observations "NULL"
     }
@@ -157,12 +157,12 @@ erDiagram
     SETTLEMENTS ||--o{ PAYMENTS : "paid_by"
 
     SETTLEMENTS {
-        int settlement_id PK
-        int delivery_id FK "UNIQUE, NOT NULL"
+        varchar settlement_id PK "STL-YYYYMMDD-NNNNNN"
+        varchar delivery_id FK "UNIQUE, NOT NULL"
         int daily_price_id FK "NOT NULL"
         numeric net_weight_kg "CHECK(> 0), NOT NULL"
         numeric price_per_kg_applied "CHECK(> 0), NOT NULL"
-        numeric deductions_amount "CHECK(0 to gross), DEFAULT 0"
+        numeric deductions_amount "CHECK(>= 0), DEFAULT 0"
         numeric gross_amount "GENERATED (weight * price)"
         numeric net_amount "GENERATED (gross - deductions)"
         timestamp settled_at "DEFAULT CURRENT_TIMESTAMP"
@@ -170,10 +170,10 @@ erDiagram
     }
 
     PAYMENTS {
-        int payment_id PK
-        int settlement_id FK "NOT NULL"
+        varchar payment_id PK "PAY-YYYYMMDD-NNNNNN"
+        varchar settlement_id FK "NOT NULL"
         varchar payment_method "CHECK(cash,bank_transfer,check)"
         numeric amount "CHECK(> 0), NOT NULL"
         timestamp paid_at "DEFAULT CURRENT_TIMESTAMP"
-        varchar transaction_reference "UNIQUE, required if not cash"
+        varchar transaction_reference "UNIQUE, NULL"
     }

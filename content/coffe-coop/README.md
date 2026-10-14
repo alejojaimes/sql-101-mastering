@@ -9,6 +9,8 @@
 | Juan Alejandro Carrillo Jaimes | Primera versión: MER, modelo relacional, modelo físico y DDL | 14 oct 2026 |
 | Juan Alejandro Carrillo Jaimes | Modelo sin entidades débiles; cardinalidad junto a cada relación en el MER | 14 oct 2026 |
 | Juan Alejandro Carrillo Jaimes | Documento del caso de estudio en `docs/` | 14 oct 2026 |
+| Juan Alejandro Carrillo Jaimes | `02` solo con tablas y PK; FK, UNIQUE y CHECK en `03`; sin índices; CHECK simplificados | 14 oct 2026 |
+| Juan Alejandro Carrillo Jaimes | Llaves de entregas, análisis, liquidaciones y pagos como códigos `VARCHAR` (prefijo + fecha + consecutivo) | 14 oct 2026 |
 
 ---
 
@@ -56,9 +58,8 @@ La descripción completa del caso (contexto, requerimientos y casos de uso) est�
 | PRIMARY KEY | 15 |
 | FOREIGN KEY | 17 |
 | UNIQUE | 16 |
-| CHECK | 35 |
+| CHECK | 20 |
 | Columnas calculadas (`GENERATED`) | 2 |
-| Índices sobre FK | 10 |
 
 > La base se entrega **sin datos**. El conteo de registros se agregará cuando se genere la carga de datos.
 
@@ -85,7 +86,7 @@ psql -U postgres -h localhost -f scripts/ddl/01-create-database.sql
 
 > **Windows:** el locale `es_CO.UTF-8` no existe. Cámbialo por `'Spanish_Colombia.1252'` o borra las líneas `LC_COLLATE` y `LC_CTYPE`.
 
-### Paso 2 — Crea los esquemas, tablas y llaves foráneas
+### Paso 2 — Crea los esquemas y las tablas
 
 Conectado a `coffee_coop_db` con el usuario `cc_admin`:
 
@@ -93,7 +94,7 @@ Conectado a `coffee_coop_db` con el usuario `cc_admin`:
 psql -U cc_admin -h localhost -d coffee_coop_db -f scripts/ddl/02-create-tables.sql
 ```
 
-### Paso 3 — Crea los CHECK constraints y los índices
+### Paso 3 — Agrega las restricciones (FK, UNIQUE y CHECK)
 
 ```sh
 psql -U cc_admin -h localhost -d coffee_coop_db -f scripts/ddl/03-alter-tables.sql
@@ -130,7 +131,7 @@ JOIN pg_namespace n ON n.oid = c.connamespace
 WHERE n.nspname IN ('geo', 'farm', 'buy', 'pay')
 GROUP BY c.contype
 ORDER BY c.contype;
--- Esperado: CHECK 35 · FOREIGN KEY 17 · PRIMARY KEY 15 · UNIQUE 16
+-- Esperado: CHECK 20 · FOREIGN KEY 17 · PRIMARY KEY 15 · UNIQUE 16
 ```
 
 Registros por tabla (útil después de cargar datos):
@@ -182,8 +183,8 @@ coffee-coop/
 └── scripts/
     └── ddl/                          # Definición del esquema — ejecutar en orden numérico
         ├── 01-create-database.sql    # Usuario cc_admin y BD coffee_coop_db (como postgres)
-        ├── 02-create-tables.sql      # Esquemas, tablas, PK, UNIQUE, DEFAULT y FK
-        └── 03-alter-tables.sql       # CHECK constraints e índices sobre FK
+        ├── 02-create-tables.sql      # Esquemas y tablas: columnas, tipos, NOT NULL, DEFAULT y PK
+        └── 03-alter-tables.sql       # Restricciones: FOREIGN KEY, UNIQUE y CHECK
 ```
 
 ---
@@ -194,5 +195,15 @@ coffee-coop/
 - Las relaciones 1:1 (`deliveries` → `quality_analyses` y `deliveries` → `settlements`) se garantizan con `UNIQUE (delivery_id)`.
 - Las tablas N:M (`plot_varieties`, `farm_certifications`) tienen llave primaria propia y un `UNIQUE` que evita duplicados, igual que `patient_addresses` en `smart_health`.
 - El modelo no usa entidades débiles: `farm.plots` tiene `plot_id` como PK y la regla del código de lote se controla con `UNIQUE (farm_id, plot_code)`.
+- Las tablas de catálogo y maestras usan llaves `SERIAL`. Los documentos transaccionales usan un código `VARCHAR(30)` con prefijo, fecha y consecutivo, que se asigna al insertar:
+
+  | Tabla | Llave | Ejemplo |
+  |---|---|---|
+  | `buy.deliveries` | `delivery_id` | `DLV-20261013-000001` |
+  | `buy.quality_analyses` | `analysis_id` | `QA-20261013-000001` |
+  | `pay.settlements` | `settlement_id` | `STL-20261013-000001` |
+  | `pay.payments` | `payment_id` | `PAY-20261014-000001` |
+
+- `02-create-tables.sql` solo define las tablas con su llave primaria. Todas las demás restricciones (FK, UNIQUE y CHECK) se agregan con `ALTER TABLE` en `03-alter-tables.sql`.
 - Las FK usan `ON UPDATE CASCADE` y `ON DELETE RESTRICT`. Solo las tablas N:M usan `ON DELETE CASCADE` desde su tabla dueña.
-- Al final de `03-alter-tables.sql` hay seis reglas de negocio pendientes que necesitan **triggers** (no se pueden expresar con `CHECK`), para una próxima unidad.
+- Los CHECK solo validan valores simples de una columna: listas de valores permitidos (`IN`), números positivos y rangos. Las reglas que comparan varias tablas (por ejemplo, que la suma de los pagos no supere la liquidación) quedan para la unidad de triggers.

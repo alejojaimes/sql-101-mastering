@@ -35,14 +35,14 @@ Table geo.municipalities {
 
 Table farm.farmers {
   farmer_id serial [pk]
-  document_number varchar(20) [not null, unique, note: 'CHECK 6-12 digits']
+  document_number varchar(20) [not null, unique]
   first_name varchar(60) [not null]
   last_name varchar(60) [not null]
   birth_date date [not null]
   gender char(1) [not null, note: 'CHECK (M, F, O)']
   phone_number varchar(20) [not null]
-  email varchar(120) [unique, note: 'CHECK email format']
-  membership_date date [not null, default: `CURRENT_DATE`, note: 'CHECK member is 18+ at joining']
+  email varchar(120) [unique]
+  membership_date date [not null, default: `CURRENT_DATE`]
   is_active boolean [not null, default: true]
   municipality_code varchar(10) [not null]
 }
@@ -54,9 +54,9 @@ Table farm.farms {
   farm_name varchar(100) [not null]
   rural_district varchar(100) [not null]
   total_area_ha numeric(8,2) [not null, note: 'CHECK > 0']
-  altitude_masl int [not null, note: 'CHECK 0-3500']
-  latitude numeric(9,6) [note: 'CHECK inside Colombia']
-  longitude numeric(9,6) [note: 'CHECK inside Colombia']
+  altitude_masl int [not null]
+  latitude numeric(9,6)
+  longitude numeric(9,6)
   registered_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
 
   indexes {
@@ -69,7 +69,7 @@ Table farm.plots {
   farm_id int [not null]
   plot_code varchar(10) [not null]
   area_ha numeric(8,2) [not null, note: 'CHECK > 0']
-  planting_year smallint [not null, note: 'CHECK >= 1950']
+  planting_year smallint [not null]
   shade_type varchar(20) [not null, note: 'CHECK (full_sun, partial_shade, full_shade)']
 
   indexes {
@@ -90,7 +90,7 @@ Table farm.plot_varieties {
   plot_id int [not null]
   variety_id int [not null]
   planted_percentage numeric(5,2) [not null, note: 'CHECK > 0 AND <= 100']
-  tree_count int [not null, note: 'CHECK > 0']
+  tree_count int [not null]
 
   indexes {
     (plot_id, variety_id) [unique, name: 'uq_plot_varieties_plot_variety']
@@ -135,7 +135,7 @@ Table buy.daily_prices {
   collection_point_id int [not null]
   price_date date [not null]
   price_per_kg numeric(10,2) [not null, note: 'CHECK > 0']
-  reference_yield_factor numeric(5,2) [not null, default: 94.00, note: 'CHECK 70-120']
+  reference_yield_factor numeric(5,2) [not null, default: 94.00]
 
   indexes {
     (collection_point_id, price_date) [unique, name: 'uq_daily_prices_point_date']
@@ -143,7 +143,7 @@ Table buy.daily_prices {
 }
 
 Table buy.deliveries {
-  delivery_id serial [pk]
+  delivery_id varchar(30) [pk, note: 'DLV-YYYYMMDD-NNNNNN']
   farm_id int [not null]
   collection_point_id int [not null]
   delivered_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
@@ -154,14 +154,14 @@ Table buy.deliveries {
 }
 
 Table buy.quality_analyses {
-  analysis_id serial [pk]
-  delivery_id int [not null, unique]
+  analysis_id varchar(30) [pk, note: 'QA-YYYYMMDD-NNNNNN']
+  delivery_id varchar(30) [not null, unique]
   analyzed_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
   moisture_pct numeric(5,2) [not null, note: 'CHECK 0-100']
-  yield_factor numeric(5,2) [not null, note: 'CHECK 70-120']
-  defects_pct numeric(5,2) [not null, default: 0, note: 'CHECK 0-100']
-  cup_score numeric(5,2) [note: 'CHECK 0-100']
-  is_accepted boolean [not null, note: 'CHECK accepted => moisture 10-12.5']
+  yield_factor numeric(5,2) [not null]
+  defects_pct numeric(5,2) [not null, default: 0]
+  cup_score numeric(5,2)
+  is_accepted boolean [not null]
   analyst_name varchar(100) [not null]
   observations text
 }
@@ -171,12 +171,12 @@ Table buy.quality_analyses {
 // ============================================
 
 Table pay.settlements {
-  settlement_id serial [pk]
-  delivery_id int [not null, unique]
+  settlement_id varchar(30) [pk, note: 'STL-YYYYMMDD-NNNNNN']
+  delivery_id varchar(30) [not null, unique]
   daily_price_id int [not null]
   net_weight_kg numeric(10,2) [not null, note: 'CHECK > 0']
   price_per_kg_applied numeric(10,2) [not null, note: 'CHECK > 0']
-  deductions_amount numeric(14,2) [not null, default: 0, note: 'CHECK 0 to gross_amount']
+  deductions_amount numeric(14,2) [not null, default: 0, note: 'CHECK >= 0']
   gross_amount numeric(14,2) [note: 'GENERATED: net_weight_kg * price_per_kg_applied']
   net_amount numeric(14,2) [note: 'GENERATED: gross_amount - deductions_amount']
   settled_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
@@ -184,12 +184,12 @@ Table pay.settlements {
 }
 
 Table pay.payments {
-  payment_id serial [pk]
-  settlement_id int [not null]
+  payment_id varchar(30) [pk, note: 'PAY-YYYYMMDD-NNNNNN']
+  settlement_id varchar(30) [not null]
   payment_method varchar(20) [not null, note: 'CHECK (cash, bank_transfer, check)']
   amount numeric(14,2) [not null, note: 'CHECK > 0']
   paid_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
-  transaction_reference varchar(60) [unique, note: 'Required when payment_method <> cash']
+  transaction_reference varchar(60) [unique]
 }
 
 // ============================================
