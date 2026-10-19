@@ -1,0 +1,5 @@
+pandas>=2.2
+numpy>=1.26
+openpyxl>=3.1
+psycopg2-binary>=2.9
+tqdm>=4.66
