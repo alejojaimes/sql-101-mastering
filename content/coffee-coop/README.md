@@ -11,6 +11,11 @@
 | Juan Alejandro Carrillo Jaimes | Documento del caso de estudio en `docs/` | 14 oct 2026 |
 | Juan Alejandro Carrillo Jaimes | `02` solo con tablas y PK; FK, UNIQUE y CHECK en `03`; sin índices; CHECK simplificados | 14 oct 2026 |
 | Juan Alejandro Carrillo Jaimes | Llaves de entregas, análisis, liquidaciones y pagos como códigos `VARCHAR` (prefijo + fecha + consecutivo) | 14 oct 2026 |
+| Juan Alejandro Carrillo Jaimes | Generador de datos sintéticos, notebooks y pipeline de carga (`data/`, `scripts/pipelines/`, `scripts/notebooks/`) | 18 oct 2026 |
+| Juan Alejandro Carrillo Jaimes | Carpeta renombrada de `coffe-coop` a `coffee-coop` | 18 oct 2026 |
+| Juan Alejandro Carrillo Jaimes | Guía de carga para Linux (`README-linux.md`) y cargador multiplataforma `load_data.py` | 20 oct 2026 |
+| Juan Alejandro Carrillo Jaimes | Primer ejercicio del taller de SQL básico (`scripts/querys/01-sql-basic/`) | 27 oct 2026 |
+| Juan Alejandro Carrillo Jaimes | `04-alter-tables-checks.sql` con 5 CHECK nuevos (altitud, árboles, factor de rendimiento, defectos y puntaje de taza); README con datos y estructura completa | 2 nov 2026 |
 
 ---
 
@@ -58,10 +63,33 @@ La descripción completa del caso (contexto, requerimientos y casos de uso) est�
 | PRIMARY KEY | 15 |
 | FOREIGN KEY | 17 |
 | UNIQUE | 16 |
-| CHECK | 20 |
+| CHECK | 25 |
 | Columnas calculadas (`GENERATED`) | 2 |
 
-> La base se entrega **sin datos**. El conteo de registros se agregará cuando se genere la carga de datos.
+### Datos
+
+Los scripts DDL crean la base **vacía**. Los datos sintéticos vienen comprimidos en `data/sql/coffee_coop_sql.zip` (31 archivos `.sql`, ≈ 415 MB descomprimidos) y se cargan con el pipeline de [`scripts/pipelines/02-insert-data`](scripts/pipelines/02-insert-data/README.md).
+
+| Esquema | Tabla | Registros |
+|---|---|---:|
+| `farm` | `plot_varieties` | 1.107.253 |
+| `pay` | `payments` | 692.151 |
+| `farm` | `plots` | 651.793 |
+| `buy` | `deliveries` | 650.000 |
+| `buy` | `quality_analyses` | 648.938 |
+| `pay` | `settlements` | 587.871 |
+| `buy` | `daily_prices` | 312.120 |
+| `farm` | `farms` | 232.394 |
+| `farm` | `farmers` | 150.000 |
+| `farm` | `farm_certifications` | 109.425 |
+| `geo` | `municipalities` | 1.102 |
+| `buy` | `collection_points` | 180 |
+| `geo` | `departments` | 33 |
+| `farm` | `coffee_varieties` | 12 |
+| `farm` | `certifications` | 7 |
+| | **Total** | **5.143.279** |
+
+Las entregas cubren del 1 de enero de 2022 al 30 de septiembre de 2026.
 
 ---
 
@@ -102,7 +130,15 @@ psql -U cc_admin -h localhost -d coffee_coop_db -f scripts/ddl/03-alter-tables.s
 
 > En pgAdmin o DBeaver: abre cada archivo en una ventana de consultas conectada a la base y con el usuario indicado, y ejecútalo con F5.
 
-### Paso 4 — Valida
+### Paso 4 — Agrega los CHECK adicionales
+
+```sh
+psql -U cc_admin -h localhost -d coffee_coop_db -f scripts/ddl/04-alter-tables-checks.sql
+```
+
+> ¿Ya tenías la base montada y con datos? Ejecuta solo este script: los datos cargados ya cumplen las 5 reglas.
+
+### Paso 5 — Valida
 
 Tablas por esquema:
 
@@ -131,7 +167,7 @@ JOIN pg_namespace n ON n.oid = c.connamespace
 WHERE n.nspname IN ('geo', 'farm', 'buy', 'pay')
 GROUP BY c.contype
 ORDER BY c.contype;
--- Esperado: CHECK 20 · FOREIGN KEY 17 · PRIMARY KEY 15 · UNIQUE 16
+-- Esperado: CHECK 25 · FOREIGN KEY 17 · PRIMARY KEY 15 · UNIQUE 16
 ```
 
 Registros por tabla (útil después de cargar datos):
@@ -148,6 +184,15 @@ FROM pg_catalog.pg_tables
 WHERE schemaname IN ('geo', 'farm', 'buy', 'pay')
 ORDER BY schemaname, tablename;
 ```
+
+### Paso 6 — Carga los datos
+
+Sigue la guía de tu sistema operativo:
+
+- Windows: [`scripts/pipelines/02-insert-data/README.md`](scripts/pipelines/02-insert-data/README.md)
+- Linux / macOS: [`scripts/pipelines/02-insert-data/README-linux.md`](scripts/pipelines/02-insert-data/README-linux.md)
+
+Al terminar, la consulta "Registros por tabla" del paso 5 debe devolver los valores de la sección [Datos](#datos).
 
 ### Empezar de nuevo
 
@@ -174,6 +219,13 @@ DROP USER IF EXISTS cc_admin;
 ```
 coffee-coop/
 ├── README.md
+├── data/
+│   ├── source/                       # Catálogos de entrada del generador
+│   │   ├── CatalogoDatos.xlsx        # DIVIPOLA, departamentos cafeteros, variedades, certificaciones
+│   │   ├── people.xlsx               # Nombres, apellidos, dominios de correo, prefijos celulares
+│   │   └── addresses.xlsx            # Veredas por municipio
+│   └── sql/
+│       └── coffee_coop_sql.zip       # INSERT generados (~5,1 M filas) — descomprimir antes de cargar
 ├── docs/
 │   └── Coffee_Coop.pdf               # Caso de estudio: contexto, requerimientos y casos de uso
 ├── models/
@@ -181,10 +233,20 @@ coffee-coop/
 │   ├── LDM/                          # Modelo relacional (Mermaid)
 │   └── PDM/                          # Modelo físico (DBML)
 └── scripts/
-    └── ddl/                          # Definición del esquema — ejecutar en orden numérico
-        ├── 01-create-database.sql    # Usuario cc_admin y BD coffee_coop_db (como postgres)
-        ├── 02-create-tables.sql      # Esquemas y tablas: columnas, tipos, NOT NULL, DEFAULT y PK
-        └── 03-alter-tables.sql       # Restricciones: FOREIGN KEY, UNIQUE y CHECK
+    ├── ddl/                          # Definición del esquema — ejecutar en orden numérico
+    │   ├── 01-create-database.sql    # Usuario cc_admin y BD coffee_coop_db (como postgres)
+    │   ├── 02-create-tables.sql      # Esquemas y tablas: columnas, tipos, NOT NULL, DEFAULT y PK
+    │   ├── 03-alter-tables.sql       # Restricciones: FOREIGN KEY, UNIQUE y CHECK
+    │   └── 04-alter-tables-checks.sql  # 5 CHECK adicionales (rangos de valores)
+    ├── notebooks/
+    │   ├── 01-build-source.ipynb             # Construye los Excel de data/source
+    │   └── 02-generate-synthetic-data.ipynb  # Mismo generador, paso a paso
+    ├── pipelines/
+    │   ├── requirements.txt          # Dependencias de Python
+    │   ├── 01-generate-data/         # coffee_data_generator.py → archivos INSERT
+    │   └── 02-insert-data/           # Carga: load_data.ps1 (Windows) y load_data.py (multiplataforma)
+    └── querys/
+        └── 01-sql-basic/             # Ejercicios del taller de SQL básico
 ```
 
 ---
@@ -204,6 +266,6 @@ coffee-coop/
   | `pay.settlements` | `settlement_id` | `STL-20261013-000001` |
   | `pay.payments` | `payment_id` | `PAY-20261014-000001` |
 
-- `02-create-tables.sql` solo define las tablas con su llave primaria. Todas las demás restricciones (FK, UNIQUE y CHECK) se agregan con `ALTER TABLE` en `03-alter-tables.sql`.
+- `02-create-tables.sql` solo define las tablas con su llave primaria. Todas las demás restricciones (FK, UNIQUE y CHECK) se agregan con `ALTER TABLE` en `03-alter-tables.sql`, y `04-alter-tables-checks.sql` completa 5 CHECK de rango (20 + 5 = 25).
 - Las FK usan `ON UPDATE CASCADE` y `ON DELETE RESTRICT`. Solo las tablas N:M usan `ON DELETE CASCADE` desde su tabla dueña.
 - Los CHECK solo validan valores simples de una columna: listas de valores permitidos (`IN`), números positivos y rangos. Las reglas que comparan varias tablas (por ejemplo, que la suma de los pagos no supere la liquidación) quedan para la unidad de triggers.
