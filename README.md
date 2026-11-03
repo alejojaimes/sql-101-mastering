@@ -1,6 +1,6 @@
 <div align="center">
 
-# sql-101 · mastering 🐘
+<img src="assets/banner.png" alt="sql-101-mastering" width="100%">
 
 **Bases de datos relacionales, del modelo a la consulta.**
 
